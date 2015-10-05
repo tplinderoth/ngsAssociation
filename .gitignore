@@ -1,0 +1,8 @@
+ngsAssociation
+*.o
+*.d
+doc/ngsAssociation_manual.aux
+doc/ngsAssociation_manual.log
+doc/ngsAssociation_manual.out
+doc/ngsAssociation_manual.synctex.gz
+doc/ngsAssociation_manual.toc

@@ -1,0 +1,283 @@
+\documentclass[12pt]{article}
+
+\usepackage{array}
+\usepackage{geometry}
+\usepackage{hyperref}
+\usepackage{framed}
+\usepackage{microtype}
+\usepackage{tocbibind}
+
+\geometry{textwidth=7in, textheight=8in}
+
+\renewcommand{\arraystretch}{1.5}
+
+% ngsAssociation defaults
+\newcommand{\poolsz}{2}
+\newcommand{\qoffset}{33}
+\newcommand{\minq}{20}
+\newcommand{\minpooln}{1}
+\newcommand{\mincov}{1}
+%
+
+\newenvironment{codeblock}{ \begin{framed}\ttfamily}{ \end{framed} }
+
+\newenvironment{argdescrip}
+{	
+\begin{tabular}
+	{| m{1in} | m{1in} | m{4in}|}
+	\hline
+	\textit{option} & \textit{input type} & \textit{description}\\
+	\hline
+}
+{
+	\hline
+	\end{tabular}
+}
+
+\title{ngsAssociation\\flexible association mapping using pooled or unpooled next-generation sequencing data}
+\author{Tyler Linderoth}
+\date{}
+
+\begin{document}
+
+\maketitle
+
+\tableofcontents
+\newpage
+
+\section{Introduction}
+\textit{ngsAssociation} is a program for association mapping using next-generation sequencing (NGS) data. It accurately estimates population allele frequencies by modeling sources of NGS genotyping error such as sampling chromosomes with replacement, variable coverage, and sequencing error. The implemented methods are based largely on those explained in Kim {\it et al.} (2010). \textit{ngsAssociation} comprises two subprograms; \textit{association} calculates a likelihood ratio (LR) for a test of allelic association, and \textit{summarize}, which estimates the MAF calculates a LR for a test of whether a site is variable.
+
+\section{Installation}
+\setlength{\parindent}{0cm}
+\textit{ngsAssociation} can be downloaded from\\\url{https://github.com/tplinderoth/ngsAssociation}\\or directly fetched from 
+github using the terminal command:\\
+\texttt{git clone https://github.com/tplinderoth/ngsAssociation}
+
+\vspace{5mm}
+
+To install \textit{ngsAssociation} issue the following commands:
+
+\begin{codeblock}
+cd ngsAssociation\\
+make
+\end{codeblock}
+
+This will create the ngsAssociation executable. \textit{ngsAssociation} has been successfully compiled and tested on Linux and MacOsX operating systems.
+
+\section{Input File Format}
+
+\subsection{Main Pileup Input}
+
+\label{pileup}
+
+\textit{ngsAssociation} takes a single Pileup format file containing sequencing information for all pools to be analyzed as input. Each line of the Pileup input must be tab-delimited and should specify, in the following order:
+
+\vspace{5mm}
+
+(1) sequence identifier\\
+(2) position in sequence\\
+(3) reference nucleotide\\
+(4) coverage at the position\\
+(5) read bases at the position\\
+(6) base quality scores
+
+\vspace{5mm}
+
+Fields 4-6 should be repeated for each pool.
+
+\vspace{5mm}
+
+Example Pileup input for 4 pools at 3 sites:
+\vspace{-0.5cm}
+\begin{codeblock}
+chr1	1	C	2	,.	JH	4	,...		A5<E	4	.TtT		F@=D	4	..,,	BB:C\\
+chr1	23	G	1	.	E	4	cC..		BBE>	3	.,,		HGH	5	C.c,	D>>G\\
+chr1	55	T	6	,.Aaa,	FHH=;H	2	aA		6>	4	.A,A		CFFF	2	,,	AB
+\end{codeblock}
+
+\subsection{Treatment Identifier File}
+
+\label{treatfile}
+
+To run the {\it association} routine of \textit{ngsAssociation}, you must supply a text file of treatment identifiers to the \texttt{-treatments} option so that the program knows the phenotypes of the different pools in the input Pileup. Each line of the treatments file specifies the treatment identifier of a pool. The order of identifiers in the treatments file corresponds to the order of pools in the input Pileup.
+
+\vspace{5mm}
+
+Example \texttt{treatments.text} file:
+\vspace{-0.4cm}
+\begin{codeblock}
+control\\
+control\\
+case\\
+case\\
+control\\
+case\\
+case\\
+control
+\end{codeblock}
+The above example corresponds to Pileup input with 8 pools, representing two different phenotypes: pools 1-2 in the Pileup have the \lq control\rq\hspace{5pt}phenotype, 3-4 have the \lq case\rq\hspace{5pt}phenotype, 5 is a control, 6-7 are cases, and 8 is a control. Note that SAMtools outputs individuals/pools in Pileup format in the corresponding order in which input BAM files are supplied or listed in a BAM list.
+
+\section{Running the Program}
+Running \textit{ngsAssociation} without arguments or with \texttt{-help} outputs information about its two subprograms \textit{association} and \textit{summarize}:
+\begin{codeblock}
+./ngsAssociation -help
+\end{codeblock}
+
+\subsection{association}
+The \textit{association} routine estimates the minor allele frequency (MAF) for the total population, such that the frequency of this allele is the same in each treatment-specific population. This is the null hypothesis, versus the alternative hypothesis in which the frequency of the total population's minor allele is different in each treatment, and so the frequency of this allele is estimated respective of treatment. The likelihood under the null is compared to the alternative likelihood by means of a LR for a test of allelic association. The LRT statistics are approximately distributed according to a $\chi^{2}$ with one degree of freedom. The test becomes conservative under this distribution when the MAF is greater than ~5\%, as p-values become slightly skewed away from small values. When the MAF is smaller than 0.5\% and less than the sequencing error rate, the LRs depart from the $\chi^{2}_{1}$.
+
+\vspace{5mm}
+
+To run the \textit{association} routine use:
+\begin{codeblock}
+./ngsAssociation association \textit{[options]}
+\end{codeblock}
+Issue the above command without options to print help information for \textit{association}.
+
+\subsection{summarize}
+The \textit{summarize} routine calculates a LR for whether a site is variable by comparing the likelihood under the null hypothesis of the population MAF being zero to the alternative hypothesis likelihood for which the MAF is estimated using maximum likelihood. The LRT statistics are approximately distributed as a 50:50 mixture of a $\chi^{2}_{0}$ and $\chi^{2}_{1}$. Therefore, the \textit{summarize} routine can be used for obtaining ML estimates of the MAF and statically calling SNPs. In addition, \textit{summarize} produces a summary of the sequencing coverage and base quality information for each site.
+
+\vspace{5mm}
+
+To run the \textit{summarize} routine use:
+\begin{codeblock}
+./ngsAssociation summarize \textit{[options]}
+\end{codeblock}
+Issue the above command without options to print help information for \textit{summarize}.
+
+\vspace{5mm}
+
+\subsection{Input Options}
+
+\label{input}
+
+The table below explains the command-line options for running \textit{ngsAssociation}. Options marked with $\mathcal{A}$ or $\mathcal{S}$ are specific to the \textit{association} and \textit{summarize} routines, respectively. Default values are enclosed in {[} {]}.
+
+\vspace{5mm}
+
+\begin{argdescrip}
+\texttt{-infile} & file$|-$ & Pileup format file of reads and base quality scores.\newline\lq\texttt{\textbf{-infile -}}\rq\hspace{5pt}will read from STDIN. See section \ref{pileup}.\\
+\hline
+\texttt{-outfile} & file & Name of output file.\newline If not supplied, results are printed to STDOUT.\\
+\hline
+\texttt{-treatments} & file & File of treatment identifiers for pools. See section \ref{treatfile}. $\mathcal{A}$\\
+\hline
+\texttt{-poolsz} & integer & Haploid sample size of each pool. [\poolsz]\\
+\hline
+\texttt{-Qoffset} & float & Minimum possible ASCII decimal value used to encode base quality scores. This is the amount that will be subtracted from the quality score decimal values before they are translated into sequencing error\newline probabilities according to $P(error)=10^{\frac{-Q}{10}}$. [\qoffset]\\
+\hline
+\texttt{-minQ} & float & Minimum base quality score to retain read. [\minq]\\
+\hline
+\texttt{-minpooln} & integer & Minimum number of covered pools to retain site. [\minpooln]\\
+\hline
+\texttt{-mincov} & integer & Minimum number of reads from a pool at the current site for the pool to be considered \lq covered \rq. [\mincov]\\
+\hline
+\texttt{-printIndiv} & & If specified, output coverage and base quality information for each pool. $\mathcal{S}$\\
+\end{argdescrip}
+
+\subsection{Output}
+\subsubsection{association output}
+The output from running the \textit{association} routine by field is:
+
+\vspace{5mm}
+
+(1) sequence identifier\\
+(2) position in sequence (1-based index)\\
+(3) -log likelihood of null hypothesis (MAF is the same among treatments)\\
+(4) -log likelihood of alternative hypothesis (MAF is different between treatments)\\
+(5) likelihood ratio of an allelic association\\
+(6) total population MAF (from the null hypothesis)\\
+(7+) MAF in each treatment (from the alternative hypothesis)
+
+\vspace{5mm}
+
+The treatment-specific MAFs are listed in the order in which the treatments uniquely appear in the treatment identifier file. 
+\subsubsection{summarize output}
+
+\label{sumout}
+
+The output from running the \textit{summarize} routine by field is:
+
+\vspace{5mm}
+
+(1) sequence identifier\\
+(2) position in sequence (1-base indexed)\\
+(3) reference allele\\
+(4) total site depth;reference allele count;alternate allele count\\
+(5) count of each allele at site: A;C;G;T;indel\\
+(6) ML MAF estimate\\
+(7) LR that site is variable\\
+(8) pool coverage\\
+(9) read bases for pool\\
+(10) base quality scores for pool reads delimited by ;
+
+\vspace{5mm}
+
+Fields 8-10 are printed for each pool by specifying the \texttt{-printIndiv} option.
+
+\section{Examples}
+All of the files for running examples can be found in the \texttt{ngsAssociation/examples} directory. The examples that follow assume that you are working from that directory.
+\subsection{Association Test}
+
+\label{assocex}
+
+The two input files used for calculating LRs for association testing are \texttt{assoc\_example.pileup} and \texttt{poolid.txt}. \texttt{assoc\_example.pileup} is the Pileup format sequencing data for 200 case and 200 control pools at a pooling size of 5 diploid individuals. The average coverage per pool and sequencing error rate is 5X and 1\%, respectively. The file \texttt{assoc\_example.param} has information about the true total population and treatment-specific MAFs used to generate \texttt{assoc\_example.pileup}. The contents of \texttt{assoc\_example.param} according to field are:
+
+\vspace{5mm}
+
+(1) sequence identifier\\
+(2) position in sequence\\
+(3) total population MAF\\
+(4) control MAF\\
+(5) case MAF
+
+\vspace{5mm}
+
+\texttt{poolid.txt} is the treatment identifier file. It denotes the first 200 pools in the Pileup as controls and the following 200 pools as cases. Note that the labels used are arbitrary, so that \lq control\rq\hspace{5pt}and \lq case\rq\hspace{5pt}could just as easily be \lq red\rq\hspace{1pt} and \lq green\rq, \lq 0\rq\hspace{1pt} and \lq 1\rq, etc. 
+
+\vspace{5mm}
+
+To calculate LRs for the example association data and output them to a file called \texttt{assoc\_lr.txt}, issue the following commands:
+
+\begin{codeblock}
+../ngsAssociation association -infile assoc\_example.pileup\\ -outfile assoc\_lr.txt -treatments poolid.txt -poolsz 10 -Qoffset 33 -minQ 13\\ -minpooln 200 -mincov 2
+\end{codeblock}
+
+Note that \texttt{-poolsz} requires the \emph{haploid} size of each pool, which is 10, when 5 diploid individuals are used to construct each pool. For non-pooled designs (i.e. each \lq pool\rq\hspace{5pt}is comprised of 1 individual), \texttt{-poolsz} would be set to the organism's ploidy (2 for diploids). \texttt{-Qoffset 33} indicates that 33 should be subtracted from the ASCII decimal values of the base quality scores (see section \ref{input}) before they are interpreted as error probabilities. \texttt{-minQ 13} tells the program to throw out read bases if their quality is less than 13, and the combination of \texttt{-minpooln 200} and \texttt{-mincov 2} causes entire sites to be discarded if fewer than 200 of the 400 total pools are covered by less than 2 sequencing reads.
+
+\subsection{SNP Calling and Data Summary}
+
+The only input file necessary for running the \textit{summarize} routine is \texttt{snp\_example.pileup}, which contains the Pileup format sequencing data for 40 pools at a pooling size of 5 diploid individuals and an average sequencing depth of 5X per pool. The average sequencing error rate is 1\%. The file \texttt{snp\_example.param} contains the true MAF for each one of the sites in \texttt{snp\_example.pileup}.
+
+\vspace{5mm}
+
+To output an estimate of the MAF for each site and the LRs for whether the sites are variable to the file \texttt{snp\_lr.txt}, run the following command:
+
+\begin{codeblock}
+../ngsAssociation summarize -infile snp\_example.pileup -outfile snp\_lr.txt\\ -poolsz 10 -Qoffset 33 -minQ 13 -minpooln 20 -mincov 2
+\end{codeblock}
+
+An explanation of the input is similar to that of the association test example (section \ref{assocex}). In addition to outputting the MAF and LR of each site being variable, this routine also produces detailed, site-wide coverage information (section \ref{sumout}). To additionally output the coverage and base quality information for each pool add \texttt{-printIndiv} to the command:
+
+ \begin{codeblock}
+../ngsAssociation summarize -infile snp\_example.pileup\\ -outfile snp\_lr\_indivinfo.txt -poolsz 10 -Qoffset 33 -minQ 13 -minpooln 20\\ -mincov 2 -printIndiv
+\end{codeblock}
+
+The outputted file \texttt{snp\_lr\_indivinfo.txt} will now contain the extra information about each pool.
+
+\section{Author Details}
+
+\textit{ngsAssociation} was written by Tyler Linderoth.\\
+Contact: \href{mailto:tylerp.linderoth@gmail.com}{tylerp.linderoth@gmail.com}
+
+\begin{thebibliography}{2}
+
+\addtolength{\leftmargin}{0.2in}
+\setlength{\itemindent}{-0.2in}
+
+\bibitem{Kim2010} Kim, S. Y., Li, Y., Guo, Y., Li, R., Holmkvist, J., Hansen, T., Perderson, O., Wang, J., and Nielsen, R. (2010). Design of association studies with pooled or un-pooled next-generation sequencing data. \emph{Genet. Epidemiol.}, \textbf{34}(5), 479-491. 
+
+\end{thebibliography}
+
+\end{document}
