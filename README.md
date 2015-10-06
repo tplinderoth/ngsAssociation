@@ -10,6 +10,10 @@ https://github.com/tplinderoth/ngsAssociation/blob/master/doc/ngsAssociation_man
 
 ##Installation
 
+Download ngsAssociation with the command:  
+
+% git clone https://github.com/tplinderoth/ngsAssociation.git  
+
 To install ngsAssociation, run the commands:
 
 % cd ngsAssociation  
