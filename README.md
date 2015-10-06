@@ -22,7 +22,7 @@ To remove compilation products, run:
 
 ##Examples
 
-The manual explains how to run examples for all of ngsAssociaton's subprograms using the data located in the ngsAssociation/examples directory.
+The user manual explains how to run examples for all of ngsAssociation's subprograms using the data located in the ngsAssociation/examples directory.
 
 ##Author Details
 
