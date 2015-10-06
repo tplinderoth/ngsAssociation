@@ -5,18 +5,19 @@ ngsAssociation is a program that implements probablistic methods for association
 
 ##Documentation
 
-Please refer to the manual, ngsAssociation_manual.pdf, located in the ngsAssociation/doc directory for details about the methods, installation, and how to run the program.
+Please refer to the manual, ngsAssociation_manual.pdf, located in the ngsAssociation/doc directory for details about the methods, installation, and how to run the program:  
+https://github.com/tplinderoth/ngsAssociation/blob/master/doc/ngsAssociation_manual.pdf
 
 ##Installation
 
 To install ngsAssociation, run the commands:
 
-% cd ngsAssociation
+% cd ngsAssociation  
 % make
 
 To remove compilation products, run:
 
-% cd ngsAssociation
+% cd ngsAssociation  
 % make clean
 
 ##Examples
@@ -25,5 +26,5 @@ The manual explains how to run examples for all of ngsAssociaton's subprograms u
 
 ##Author Details
 
-ngsAssociation was written by Tyler Linderoth.
+ngsAssociation was written by Tyler Linderoth.  
 Contact: tylerp.linderoth@gmail.com 
