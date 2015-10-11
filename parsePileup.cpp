@@ -406,17 +406,14 @@ void Pileup::setIndN (size_t n)
 
 void Pileup::initializeSeqdat (size_t n)
 {
-	if (n >= 0)
+	size_t start_size = _depthReserve;
+	seqdat.resize(n);
+	for (size_t i = 0; i < n; ++i)
 	{
-		size_t start_size = _depthReserve;
-		seqdat.resize(n);
-		for (size_t i = 0; i < n; ++i)
-		{
-			seqdat[i].rdat.resize(start_size);
-			seqdat[i].depth = start_size;
-		}
-		_nind=n;
+		seqdat[i].rdat.resize(start_size);
+		seqdat[i].depth = start_size;
 	}
+	_nind=n;
 }
 
 unsigned int Pileup::setn (std::string ins)

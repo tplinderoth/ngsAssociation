@@ -26,6 +26,7 @@ namespace SiteStat
 		unsigned int qscore, const unsigned int nchr = 2, const unsigned int qmax = MAXQUAL); /* returns P(X_r|X_r,true)*P(X_r,true|k,err) from table */
 	void kahanSum(double summand, double* total, double* comp); /* performs Kahan summation */
 	double multiOptim (Pileup* pile, const double* startval, int npoints, double* par, double* lb, double* ub, int* nbounds, double min, int* status, int verb); /* performs optimization at multiple start points */
+	double calclr (const double* null, const double* alt); /* calculates likelihood ratio */
 };
 
 #endif /* _SITESTAT_H_ */

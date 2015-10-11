@@ -131,15 +131,18 @@ int processPileup (ArgParser* arg, std::string analysis)
 				return 1;
 			}
 		}
-		// return control for analysis
 
+		// return control for analysis
 		if (status)
 		{
-			if (status == -1.0 ) fprintf(stderr, "Skipping site ...\n");
-			else
+			switch(status)
 			{
-				fprintf(stderr,"Unable to carry out %s analysis",analysis.c_str());
-				return 1;
+				case -1 :
+					fprintf(stderr, "Skipping site ...\n");
+					break;
+				default :
+					fprintf(stderr,"Unable to carry out %s analysis",analysis.c_str());
+					return 1;
 			}
 		}
 

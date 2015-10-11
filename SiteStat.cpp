@@ -4,6 +4,7 @@
 
 #include <vector>
 #include <math.h>
+#include <limits>
 #include "SiteStat.h"
 #include "randomVar.h"
 #include "Matrix.h"
@@ -20,6 +21,8 @@ double SiteStat::assoclrt (Pileup* pile, std::vector<treatdat>* treatment, doubl
 	 * treatment: different treatment identifiers
 	 * like: stores -log likelihoods of [null, alternative]
 	 */
+
+	//verb = 100; // debug
 
 	const int npars = 1; // number of parameters to optimize
 	static double inval [npars]; // starting maf value
@@ -52,7 +55,8 @@ double SiteStat::assoclrt (Pileup* pile, std::vector<treatdat>* treatment, doubl
 		if (*status)
 		{
 			optimErrorMsg(pile);
-			return -1.0;
+			*status=-1.0;
+			return std::numeric_limits<double>::quiet_NaN();
 		}
 	}
 
@@ -82,7 +86,8 @@ double SiteStat::assoclrt (Pileup* pile, std::vector<treatdat>* treatment, doubl
 				if (*status)
 				{
 					optimErrorMsg(pile);
-					return -1.0;
+					*status=-1.0;
+					return std::numeric_limits<double>::quiet_NaN();
 				}
 			}
 			tIter->second=inval[0];
@@ -91,7 +96,7 @@ double SiteStat::assoclrt (Pileup* pile, std::vector<treatdat>* treatment, doubl
 	}
 
 	// calculate LR
-	lr = 2*like[0]-2*like[1];
+	lr = calclr(&like[0], &like[1]);
 
 	// check for optimization failure
 	if (lr < thresh)
@@ -113,7 +118,8 @@ double SiteStat::assoclrt (Pileup* pile, std::vector<treatdat>* treatment, doubl
 		if (*status)
 		{
 			optimErrorMsg(pile);
-			return -1.0;
+			*status=-1.0;
+			return std::numeric_limits<double>::quiet_NaN();
 		}
 
 		// alternative
@@ -133,11 +139,12 @@ double SiteStat::assoclrt (Pileup* pile, std::vector<treatdat>* treatment, doubl
 		if (*status)
 		{
 			optimErrorMsg(pile);
-			return -1.0;
+			*status=-1.0;
+			return std::numeric_limits<double>::quiet_NaN();
 		}
 
 		// recalculate LR
-		lr = 2*like[0]-2*like[1];
+		lr = calclr(&like[0], &like[1]);
 	}
 
 	return lr;
@@ -151,6 +158,8 @@ double SiteStat::snplr (Pileup* pile, double* mlmaf, int* status, int verb)
 	 * null model: maf = 0;
 	 * alternative model: maf is a value in the range (0.0,0.5]
 	 */
+
+	//verb = 100; // debug
 
 	const int npars = 1; // number of parameters to optimize
 	static double inval [npars]; // starting maf value
@@ -169,7 +178,6 @@ double SiteStat::snplr (Pileup* pile, double* mlmaf, int* status, int verb)
 	pile->setMajor(pile->empiricalMajor()); // using most common allele as major
 
 	// find maximum likelihood estimate of maf
-
 	inval[0] = mafguess(pile);
 	alt = findmax_bfgs(npars, inval, pile, maflike, NULL, lowbound, upbound, nbounds, verb, status);
 	if (*status)
@@ -180,7 +188,8 @@ double SiteStat::snplr (Pileup* pile, double* mlmaf, int* status, int verb)
 		if (*status)
 		{
 			optimErrorMsg(pile);
-			return -1.0;
+			*status=-1.0;
+			return std::numeric_limits<double>::quiet_NaN();
 		}
 	}
 	*mlmaf=inval[0];
@@ -190,7 +199,7 @@ double SiteStat::snplr (Pileup* pile, double* mlmaf, int* status, int verb)
 	null = maflike(inval, pile);
 
 	// calculate LR
-	lr = 2*null-2*alt;
+	lr = calclr(&null, &alt);
 
 	// check for optimization failure
 	if (lr < thresh && !multiopt)
@@ -200,14 +209,24 @@ double SiteStat::snplr (Pileup* pile, double* mlmaf, int* status, int verb)
 		if (*status)
 		{
 			optimErrorMsg(pile);
-			return -1.0;
+			*status=-1.0;
+			return std::numeric_limits<double>::quiet_NaN();
 		}
 
 		// recalculate LR
-		lr = 2*null-2*alt;
+		lr = calclr(&null, &alt);
 	}
 
 	return lr;
+}
+
+double SiteStat::calclr (const double* null, const double* alt)
+{
+	/*
+	 * null: -log likelihood of null hypothesis
+	 * alt: -log likelihood of alternative hypothesis
+	 */
+	return 2*(*null-*alt);
 }
 
 double SiteStat::multiOptim (Pileup* pile, const double* startval, int npoints, double* par, double* lb, double* ub, int* nbounds, double min, int* status, int verb)
@@ -218,14 +237,14 @@ double SiteStat::multiOptim (Pileup* pile, const double* startval, int npoints, 
 	int fail;
 	double* inptr = &inval;
 
-	*status=0;
+	*status=-1.0;
 
 	for (int i=0; i<npoints; ++i)
 	{
 		fail=0;
 		inval = startval[i];
 		like=findmax_bfgs(npars, inptr, pile, maflike, NULL, lb, ub, nbounds, verb, &fail);
-		if (like < min)
+		if (like < min && !fail)
 		{
 			min=like;
 			*par=inval;
