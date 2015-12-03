@@ -174,7 +174,7 @@ int doAssoc(Pileup* pile, std::vector<treatdat>* treatment, std::ostream& os, in
 	static std::vector<treatdat>::const_iterator tIter;
 	int j=0;
 	const static int prec=8;
-	const static double thresh=-1e-7; /* round negative LR to zero if greater than this */
+	const static double thresh=-1e-6; /* round negative LR to zero if greater than this */
 	int offset; /* used to set which MAFs to print */
 
 	// find MAFs and calculate LR
@@ -200,7 +200,7 @@ int doAssoc(Pileup* pile, std::vector<treatdat>* treatment, std::ostream& os, in
 	if (lr < 0.0)
 	{
 		if (lr >= thresh)
-			lr *= -1.0; // clean up numerical noise for pretty output
+			lr = 0.0; // round up to zero
 	}
 	os << pile->seqName() << "\t" << pile->position(); // chromosome and position
 	for (j=0; j<2; ++j)
@@ -222,8 +222,8 @@ int doSummary (Pileup* pile, std::ostream& os, bool indivData, int v)
 	static std::vector<seqread>::const_iterator readIter;
 	static unsigned int poolcov;
 	const static int prec=8;
-	const static int qprec=3;
-	const static double thresh=-1e-7; /* round negative LR to zero if greater than this */
+	const static int qprec=1;
+	const static double thresh=-1e-6; /* round negative LR to zero if greater than this */
 
 	// find MAF and calculate LR
 	lr = SiteStat::snplr(pile, &maf, &rc, v);
@@ -234,7 +234,7 @@ int doSummary (Pileup* pile, std::ostream& os, bool indivData, int v)
 	if (lr < 0.0)
 	{
 		if (lr >= thresh)
-			lr *= -1.0; // clean up numerical noise for pretty output
+			lr = 0.0; // round up to zero
 	}
 	os << pile->seqName()
 	<< "\t" << pile->position()

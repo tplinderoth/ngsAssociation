@@ -9,7 +9,7 @@
 #include "parsePileup.h"
 #include "ArgParser.h"
 
-const char* version = "0.2.0";
+const char* version = "0.2.1";
 
 // FUNCTION PROTOTYPES
 

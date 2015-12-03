@@ -30,13 +30,15 @@ double SiteStat::assoclrt2 (Pileup* pile, std::vector<treatdat>* treatment, doub
 	static double lowbound [] = {0.0}; // lower bound on maf
 	static double upbound [npars]; // upper bound on maf
 	static std::vector<treatdat>::iterator tIter;
-	double altlike, lr;
+	double lr;
+	static Array<double> altlike(treatment->size()-1, 0.0);
+	int i;
 	bool weightcount = true;
 
 	// parameters for iterative optimization
 	const double thresh=-1e-6; // cutoff for determining optimization failure
 	static double nullstart [] = {0.0001, 0.25, 0.49}; // null model starting points
-	static double altstart [] = {0.0, 0.0001, 0.5, 0.99}; // alternative model starting points
+	static double altstart [] = {0.0, 0.0001, 0.5, 0.99}; // alternative model starting points, first value is a dummy
 	const int nullpoints = sizeof(nullstart)/sizeof(double); // number of null optimization start points
 	const int altpoints = sizeof(altstart)/sizeof(double); // number of alternative optimization start points
 
@@ -53,7 +55,7 @@ double SiteStat::assoclrt2 (Pileup* pile, std::vector<treatdat>* treatment, doub
 	if (*status)
 	{
 		*status=0;
-		like[0]=multiOptim(pile, nullstart, nullpoints, inval, lowbound, upbound, nbounds, like[0], status, verb);
+		like[0]=multiOptim(pile, nullstart, nullpoints, inval, lowbound, upbound, nbounds, 1.0/0.0, status, verb);
 		if (*status)
 		{
 			optimErrorMsg(pile);
@@ -74,6 +76,7 @@ double SiteStat::assoclrt2 (Pileup* pile, std::vector<treatdat>* treatment, doub
 	// calculate alternative MAFs
 	like[1]=0.0;
 	upbound[0] = 1.0;
+	i = 0;
 	for(tIter = treatment->begin(); tIter != treatment->end(); ++tIter)
 	{
 		if (tIter->first != "null")
@@ -81,11 +84,11 @@ double SiteStat::assoclrt2 (Pileup* pile, std::vector<treatdat>* treatment, doub
 			pile->assignTreatment(tIter->first);
 			//inval[0]=altstart[0]; // this would be conservative
 			inval[0]= treatfreqFast(pile, &tIter->first, pile->minorid());
-			altlike = findmax_bfgs(npars, inval, pile, maflike, NULL, lowbound, upbound, nbounds, verb, status);
+			altlike[i] = findmax_bfgs(npars, inval, pile, maflike, NULL, lowbound, upbound, nbounds, verb, status);
 			if (*status)
 			{
 				*status=0;
-				altlike=multiOptim(pile, altstart, altpoints, inval, lowbound, upbound, nbounds, altlike, status, verb);
+				altlike[i]=multiOptim(pile, altstart, altpoints, inval, lowbound, upbound, nbounds, 1.0/0.0, status, verb);
 				if (*status)
 				{
 					optimErrorMsg(pile);
@@ -94,7 +97,8 @@ double SiteStat::assoclrt2 (Pileup* pile, std::vector<treatdat>* treatment, doub
 				}
 			}
 			tIter->second=inval[0];
-			like[1] += altlike;
+			like[1] += altlike[i];
+			++i;
 		}
 	}
 
@@ -108,7 +112,8 @@ double SiteStat::assoclrt2 (Pileup* pile, std::vector<treatdat>* treatment, doub
 
 		//null
 		upbound[0] = 0.5;
-		like[0]=multiOptim(pile, nullstart, nullpoints, inval, lowbound, upbound, nbounds, like[0], status, verb);
+		pile->assignTreatment("");
+		like[0]=multiOptim(pile, nullstart, nullpoints, inval, lowbound, upbound, nbounds, 1.0/0.0, status, verb);
 		for(tIter = treatment->begin(); tIter != treatment->end(); ++tIter)
 		{
 			if (tIter->first == "null")
@@ -128,14 +133,16 @@ double SiteStat::assoclrt2 (Pileup* pile, std::vector<treatdat>* treatment, doub
 		// alternative
 		like[1]=0.0;
 		upbound[0] = 1.0;
+		i=0;
 		for(tIter = treatment->begin(); tIter != treatment->end(); ++tIter)
 		{
 			if (tIter->first != "null")
 			{
 				pile->assignTreatment(tIter->first);
-				altlike=multiOptim(pile, altstart, altpoints, inval, lowbound, upbound, nbounds, 1.0/0.0, status, verb);
+				altlike[i]=multiOptim(pile, altstart, altpoints, inval, lowbound, upbound, nbounds, 1.0/0.0, status, verb);
 				tIter->second=inval[0];
-				like[1] += altlike;
+				like[1] += altlike[i];
+				++i;
 			}
 		}
 		// check if bfgs routine failed
@@ -148,6 +155,13 @@ double SiteStat::assoclrt2 (Pileup* pile, std::vector<treatdat>* treatment, doub
 
 		// recalculate LR
 		lr = calclr(&like[0], &like[1]);
+		// check if optimization still failed
+		if (lr < thresh)
+		{
+			optimErrorMsg(pile);
+			*status=-1.0;
+			return std::numeric_limits<double>::quiet_NaN();
+		}
 	}
 
 	return lr;
@@ -171,12 +185,12 @@ double SiteStat::assoclrt1 (Pileup* pile, std::vector<treatdat>* treatment, doub
 	static double lowbound [] = {0.0}; // lower bound on maf
 	static double upbound [npars] = {1.0}; // upper bound on maf
 	static std::vector<treatdat>::iterator tIter;
-	double t1like, nullfreq, lr;
+	double nullfreq, lr;
 	bool weightcount = true;
 
 	// parameters for iterative optimization
 	const double thresh=-1e-6; // cutoff for determining optimization failure
-	static double start [] = {0.0001, 0.5, 0.99}; // optimization starting points
+	static double start [] = {0.1, 0.0001, 0.5, 0.99}; // optimization starting points, first value is a dummy
 	const int startpoints = sizeof(start)/sizeof(double); // number of optimization start points
 
 	// set major and minor allele
@@ -192,11 +206,11 @@ double SiteStat::assoclrt1 (Pileup* pile, std::vector<treatdat>* treatment, doub
 	pile->assignTreatment(t1id);
 	inval[0]=treatfreqFast(pile, &t1id, pile->minorid());
 
-	t1like = findmax_bfgs(npars, inval, pile, maflike, NULL, lowbound, upbound, nbounds, verb, status);
+	findmax_bfgs(npars, inval, pile, maflike, NULL, lowbound, upbound, nbounds, verb, status);
 	if (*status)
 	{
 		*status=0;
-		t1like=multiOptim(pile, start, startpoints, inval, lowbound, upbound, nbounds, t1like, status, verb);
+		multiOptim(pile, start, startpoints, inval, lowbound, upbound, nbounds, 1.0/0.0, status, verb);
 		if (*status)
 		{
 			optimErrorMsg(pile);
@@ -204,7 +218,7 @@ double SiteStat::assoclrt1 (Pileup* pile, std::vector<treatdat>* treatment, doub
 			return std::numeric_limits<double>::quiet_NaN();
 		}
 	}
-	tIter->second=nullfreq=inval[0];
+	tIter->second=nullfreq=start[0]=inval[0];
 
 	// treatment 2 MAF
 	std::string t2id;
@@ -219,7 +233,7 @@ double SiteStat::assoclrt1 (Pileup* pile, std::vector<treatdat>* treatment, doub
 	if (*status)
 	{
 		*status=0;
-		like[1]=multiOptim(pile, start, startpoints, inval, lowbound, upbound, nbounds, like[1], status, verb);
+		like[1]=multiOptim(pile, start, startpoints, inval, lowbound, upbound, nbounds, 1.0/0.0, status, verb);
 		if (*status)
 		{
 			optimErrorMsg(pile);
@@ -244,9 +258,9 @@ double SiteStat::assoclrt1 (Pileup* pile, std::vector<treatdat>* treatment, doub
 		// treatment 1
 		tIter=treatment->begin();
 		pile->assignTreatment(t1id);
-		t1like=multiOptim(pile, start, startpoints, inval, lowbound, upbound, nbounds, t1like, status, verb);
+		multiOptim(pile, start, startpoints, inval, lowbound, upbound, nbounds, 1.0/0.0, status, verb);
 		while (tIter->first == "null" || tIter->first == t2id) ++tIter;
-		tIter->second=nullfreq=inval[0];
+		tIter->second=nullfreq=start[0]=inval[0];
 
 		// check if bfgs routine failed
 		if (*status)
@@ -277,6 +291,13 @@ double SiteStat::assoclrt1 (Pileup* pile, std::vector<treatdat>* treatment, doub
 
 		// recalculate LR
 		lr = calclr(&like[0], &like[1]);
+		// check if optimization still failed
+		if (lr < thresh)
+		{
+			optimErrorMsg(pile);
+			*status=-1.0;
+			return std::numeric_limits<double>::quiet_NaN();
+		}
 	}
 
 	return lr;
@@ -305,7 +326,7 @@ double SiteStat::snplr (Pileup* pile, double* mlmaf, int* status, int verb)
 
 	// parameters for iterative optimization
 	const double thresh=-1e-6; // cutoff for determining optimization failure
-	static const double startval [] = {0.0001, 0.25, 0.49};
+	static const double startval [] = {0.0, 0.0001, 0.25, 0.49};
 	const int npoints = sizeof(startval)/sizeof(double); // number of optimization start points
 
 	// set major allele
@@ -350,6 +371,13 @@ double SiteStat::snplr (Pileup* pile, double* mlmaf, int* status, int verb)
 
 		// recalculate LR
 		lr = calclr(&null, &alt);
+		// check if optimization still failed
+		if (lr < thresh)
+		{
+			optimErrorMsg(pile);
+			*status=-1.0;
+			return std::numeric_limits<double>::quiet_NaN();
+		}
 	}
 
 	return lr;
@@ -379,7 +407,7 @@ double SiteStat::multiOptim (Pileup* pile, const double* startval, int npoints, 
 		fail=0;
 		inval = startval[i];
 		like=findmax_bfgs(npars, inptr, pile, maflike, NULL, lb, ub, nbounds, verb, &fail);
-		if (like < min && !fail)
+		if (like <= min && !fail)
 		{
 			min=like;
 			*par=inval;
