@@ -3,6 +3,7 @@
 #include <cstdio>
 #include <algorithm> // sort
 #include <math.h> // pow
+#include <map>
 #include "parsePileup.h"
 #include "generalUtils.h"
 
@@ -164,9 +165,18 @@ int Pileup::getSeqDat (const std::string& pile)
 	_numref = 0;
 	_numalt = 0;
 	for (i = 0; i < 5; ++i)
+	{
 		_alleles[i] = 0;
+		_wtalleles[i] = 0.0;
+	}
 	for (i=0; i<2; ++i)
 		_majmin[i] = '\0';
+	for(unsigned int k=0; k < _tcounts.size(); ++k)
+	{
+		_tcounts[k].total = 0.0;
+		for (int j=0; j<5; ++j)
+			_tcounts[k].counts[j] = 0.0;
+	}
 
 	// assign reads and quality scores
 	size_t ind = 0;
@@ -184,6 +194,8 @@ int Pileup::getSeqDat (const std::string& pile)
 	{
 		++ind;
 		seqdat[ind-1].depth = 0;
+		for (int i = 0; i < 4; ++i)
+			seqdat[ind-1].allecount[i] = 0;
 		if ( (*iter)[0] == '0' ) // no data for individual
 		{
 			while ((iter+1) != pvec.end() && !isdigit((*(iter+1))[0]))
@@ -215,9 +227,6 @@ void Pileup::getReadDat (std::string* reads, std::string* qual, size_t ind)
 	size_t read_num = 0;
 	int refidx = 0;
 	std::string::iterator q = qual->begin();
-
-	for (int i = 0; i < 4; ++i)
-		seqdat[ind].allecount[i] = 0;
 
 	switch (_refallele)
 	{
@@ -302,6 +311,7 @@ void Pileup::recordRead (const size_t ind, std::string::iterator& q, size_t& rea
 	static const float factor = 0.5;
 	bool add = true;
 	double phredq = static_cast<double>(*q) - _encode;
+	double wtcount;
 
 	if (phredq < 0.0)
 	{
@@ -333,10 +343,48 @@ void Pileup::recordRead (const size_t ind, std::string::iterator& q, size_t& rea
 			++_numalt;
 		++seqdat[ind].allecount[id];
 		++_alleles[id];
+		wtcount = 1-error(phredq);
+		_wtalleles[id] += wtcount;
+		addtreatcount(wtcount, &seqdat[ind]._id, id);
 	}
 
 	++q;
 	++index;
+}
+
+void Pileup::addtreatcount (double amount, std::string* id, int allele)
+{
+	/*
+	 * allele: 0=>A, 1=>C, 2=>G, 3=>T, 4=>INDEL
+	 */
+
+	static std::map<std::string, int> indexmap;
+	unsigned int i;
+	if (_tcounts.size() > 0 && id->size() > 0)
+	{
+		if (indexmap.find(*id) != indexmap.end())
+		{
+			i = indexmap[*id];
+			_tcounts[i].counts[allele] += amount;
+			_tcounts[i].total += amount;
+		}
+		else
+		{
+			for (i=0; i < _tcounts.size(); ++i)
+			{
+				if (_tcounts[i].name == *id)
+				{
+					indexmap[*id] = i;
+					break;
+				}
+			}
+			if (indexmap.find(*id) != indexmap.end())
+			{
+				_tcounts[i].counts[allele] += amount;
+				_tcounts[i].total += amount;
+			}
+		}
+	}
 }
 
 // Pileup::indelSize gets the size of an indel + the number of digits comprising the size
@@ -509,6 +557,37 @@ unsigned int Pileup::alleleCount (const char allele) const
 	return n;
 }
 
+double Pileup::wtalleleCount (const char allele) const
+{
+	double n = 0;
+	switch (allele)
+	{
+		case 'A' :
+		case 'a' :
+			n = _wtalleles[0];
+			break;
+		case 'C' :
+		case 'c' :
+			n = _wtalleles[1];
+			break;
+		case 'G' :
+		case 'g' :
+			n = _wtalleles[2];
+			break;
+		case 'T' :
+		case 't' :
+			n = _wtalleles[3];
+			break;
+		case 'I' :
+		case 'i' :
+			n = _wtalleles[4];
+			break;
+		default :
+			fprintf(stderr, "Unrecognized base '%c' in call to Pileup::wtalleleCount\n", allele);
+	}
+	return n;
+}
+
 char Pileup::refAllele () const
 {
 	return _refallele;
@@ -590,16 +669,45 @@ char Pileup::minorid () const
 	return _majmin[1];
 }
 
-char Pileup::empiricalMajor ()
+char Pileup::empiricalMajor (bool wt)
 {
 	char maj='A';
 	static const char a[] = {'A', 'C', 'G', 'T'};
 	for (int i=0; i<4; ++i)
 	{
-		if (_alleles[i] > alleleCount(maj))
-			maj=a[i];
+		if (!wt)
+		{
+			if (_alleles[i] > alleleCount(maj))
+				maj=a[i];
+		}
+		else
+		{
+			if (_wtalleles[i] > wtalleleCount(maj))
+				maj=a[i];
+		}
 	}
 	return maj;
+}
+
+char Pileup::empiricalMinorFast (bool wt)
+{
+	int i=0;
+	static const char a[] = {'A', 'C', 'G', 'T'};
+	char minor = a[i];
+	char maj = empiricalMajor(wt);
+	while (a[i] == maj && i < 4) minor = a[++i];
+	for (i=0; i<4; ++i)
+	{
+		if (!wt)
+		{
+			if (_alleles[i] > alleleCount(minor) && a[i] != maj) minor = a[i];
+		}
+		else
+		{
+			if (_wtalleles[i] > wtalleleCount(minor) && a[i] != maj) minor = a[i];
+		}
+	}
+	return minor;
 }
 
 bool Pileup::countCmp (std::pair<char,double> i, std::pair<char,double> j)
@@ -629,21 +737,21 @@ char Pileup::empiricalMinor ()
 	// count occurrence of each base at site weighted by the quality score
 	for (j=seqdat.begin(); j!=seqdat.end(); ++j)
 	{
-		for (i=j->rdat.begin(); i!=j->rdat.end(); ++j)
+		for (unsigned int k=0; k<j->cov(); ++k)
 		{
-			switch (i->first)
+			switch (j->rdat[k].first)
 			{
 				case 'A' :
-					counts[0].second += 1-error(i->second);
+					counts[0].second += 1-error(j->rdat[k].second);
 					break;
 				case 'C' :
-					counts[1].second += 1-error(i->second);
+					counts[1].second += 1-error(j->rdat[k].second);
 					break;
 				case 'G' :
-					counts[2].second += 1-error(i->second);
+					counts[2].second += 1-error(j->rdat[k].second);
 					break;
 				case 'T' :
-					counts[3].second += 1-error(i->second);
+					counts[3].second += 1-error(j->rdat[k].second);
 					break;
 			}
 		}
@@ -666,7 +774,7 @@ double Pileup::error (int q)
 	{
 		fprintf(stderr,"Invalid quality score '%i' passed to Pileup:error\n",q);
 		_fail = 1;
-		return 1;
+		return 1.0;
 	}
 
 	if (q < n)
@@ -677,5 +785,70 @@ double Pileup::error (int q)
 
 double Pileup::scalePhred (double q)
 {
-	return pow(10, -q/10);
+	return pow(10, -q/10.0);
+}
+
+void Pileup::addtreatment (std::string* name)
+{
+	_tcounts.resize(_tcounts.size() + 1);
+	for (unsigned int i=0; i<_tcounts.size(); ++i)
+	{
+		if (_tcounts[i].name.size() == 0)
+		{
+			_tcounts[i].name = *name;
+			for (int j=0; j<5; ++j)
+				_tcounts[i].counts[j] = 0.0;
+			break;
+		}
+	}
+}
+
+double Pileup::treatcounts (std::string* id, char allele)
+{
+	static std::map<std::string, int> index;
+	unsigned int i;
+	double c = 0.0;
+	if (index.find(*id) != index.end())
+	{
+		i = index[*id];
+		if (!allele)
+			return _tcounts[i].total;
+		c = tcount(i, allele);
+	}
+	else
+	{
+		for(i=0; i < _tcounts.size(); ++i)
+		{
+			if (_tcounts[i].name == *id)
+			{
+				index[*id] = i;
+				break;
+			}
+		}
+		if (index.find(*id) != index.end())
+		{
+			if (!allele)
+				return _tcounts[i].total;
+			c = tcount(i, allele);
+		}
+	}
+	return c;
+}
+
+double Pileup::tcount (int i, char a)
+{
+	switch (a)
+	{
+		case 'A' :
+			return _tcounts[i].counts[0];
+		case 'C' :
+			return _tcounts[i].counts[1];
+		case 'G' :
+			return _tcounts[i].counts[2];
+		case 'T' :
+			return _tcounts[i].counts[3];
+		case 'I' :
+			return _tcounts[i].counts[4];
+	}
+	return 0.0;
 }

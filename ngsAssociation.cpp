@@ -99,7 +99,7 @@ int processPileup (ArgParser* arg, std::string analysis)
 	if (analysis == "association")
 	{
 		type=0;
-		status=ArgParser::parseTreatment(arg->treatmentf_name(), &treat, &pile);
+		status=ArgParser::parseTreatment(arg->treatmentf_name(), &treat, &pile, arg->lrmethod());
 		if (status)
 			return status;
 	}
@@ -122,7 +122,7 @@ int processPileup (ArgParser* arg, std::string analysis)
 		if (numCovered(&pile, mincov) >= minpool)
 		{
 			if (type == 0)
-				status=doAssoc(&pile, &treat, arg->output(), verbose);
+				status=doAssoc(&pile, &treat, arg->output(), arg->lrmethod(), verbose);
 			else if (type == 1)
 				status=doSummary(&pile, arg->output(), arg->printInd(), verbose);
 			else
@@ -166,7 +166,7 @@ unsigned int numCovered (const Pileup* data, const unsigned int mincov)
 }
 
 
-int doAssoc(Pileup* pile, std::vector<treatdat>* treatment, std::ostream& os, int v)
+int doAssoc(Pileup* pile, std::vector<treatdat>* treatment, std::ostream& os, int lrmethod, int v)
 {
 	int rc=0;
 	static double like [2]; /* [null, alternative] */
@@ -175,9 +175,24 @@ int doAssoc(Pileup* pile, std::vector<treatdat>* treatment, std::ostream& os, in
 	int j=0;
 	const static int prec=8;
 	const static double thresh=-1e-7; /* round negative LR to zero if greater than this */
+	int offset; /* used to set which MAFs to print */
 
 	// find MAFs and calculate LR
-	lr = SiteStat::assoclrt(pile, treatment, like, &rc, v);
+	if (lrmethod == 1)
+	{
+		lr = SiteStat::assoclrt1(pile, treatment, like, &rc, v);
+		offset = 1;
+	}
+	else if (lrmethod == 2)
+	{
+		lr = SiteStat::assoclrt2(pile, treatment, like, &rc, v);
+		offset = 0;
+	}
+	else
+	{
+		fprintf(stderr, "Invalid LR calculation method %i passed to doAssoc subroutine\n", lrmethod);
+		return -1;
+	}
 	if (rc)
 		return rc;
 
@@ -191,14 +206,12 @@ int doAssoc(Pileup* pile, std::vector<treatdat>* treatment, std::ostream& os, in
 	for (j=0; j<2; ++j)
 		os << "\t" << std::fixed << std::setprecision(prec) << like[j]; // likelihoods
 	os << "\t" << std::fixed << std::setprecision(prec) << lr; // LR
-	for (tIter=treatment->begin(); tIter!=treatment->end(); ++tIter)
+	for (tIter=treatment->begin()+offset; tIter!=treatment->end(); ++tIter)
 		os << "\t" << std::fixed << std::setprecision(prec) << tIter->second; // MAFs
 	os << "\n";
 
 	return rc;
 }
-
-
 
 int doSummary (Pileup* pile, std::ostream& os, bool indivData, int v)
 {
@@ -209,6 +222,7 @@ int doSummary (Pileup* pile, std::ostream& os, bool indivData, int v)
 	static std::vector<seqread>::const_iterator readIter;
 	static unsigned int poolcov;
 	const static int prec=8;
+	const static int qprec=3;
 	const static double thresh=-1e-7; /* round negative LR to zero if greater than this */
 
 	// find MAF and calculate LR
@@ -247,7 +261,7 @@ int doSummary (Pileup* pile, std::ostream& os, bool indivData, int v)
 				os << "\t";
 				for (readIter = poolIter->rdat.begin(); readIter != poolIter->rdat.begin() + poolcov; ++readIter)
 				{
-					os << readIter->second;
+					os << std::fixed << std::setprecision(qprec) << readIter->second;
 					if (static_cast <unsigned int> (std::distance(readIter, poolIter->rdat.begin() + poolcov)) > 1)
 						os << ";";
 				}
@@ -260,7 +274,6 @@ int doSummary (Pileup* pile, std::ostream& os, bool indivData, int v)
 
 	return rc;
 }
-
 
 void exitMessage (int status)
 {

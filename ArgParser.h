@@ -16,12 +16,13 @@ public:
 	ArgParser ();
 	int parseInput (const int c, char** v, const char* version); /* parse command line arguments to set data members*/
 	int setStreams (std::string infile, std::string outfile); /* sets IO streams */
-	static int parseTreatment (const std::string fname, std::vector< std::pair<std::string, double> >* treatment, Pileup* pile); /* get treatment info from file */
+	static int parseTreatment (const std::string fname, std::vector< std::pair<std::string, double> >* treatment, Pileup* pile, int lrmethod); /* get treatment info from file */
 	double minQ () const; /* return _minQ */
 	double offset () const; /* return _Qoffset */
 	unsigned int minpool () const; /* return _minind */
 	unsigned int mincov () const; /* return _mincov */
 	unsigned int poolsz () const; /* return _poosz */
+	int lrmethod () const; /* return _lrstat */
 	bool printInd () const; /* returns _printInd */
 	std::string inpileup_name() const; /* returns _infile */
 	std::string outfile_name() const; /* returns _outfile */
@@ -50,6 +51,7 @@ private:
 	std::fstream _fout;
 	std::istream& _is;
 	std::ostream _os;
+	int _lrstat; /* calculate association LR using 1 => TL method or 2 => SYK method */
 	/* status flags */
 	int _fail; /* flag to denote program errors */
 };

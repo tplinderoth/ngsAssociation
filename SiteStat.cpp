@@ -13,7 +13,7 @@
 
 // FUNCTION DEFINITIONS
 
-double SiteStat::assoclrt (Pileup* pile, std::vector<treatdat>* treatment, double like [], int* status, int verb)
+double SiteStat::assoclrt2 (Pileup* pile, std::vector<treatdat>* treatment, double like [], int* status, int verb)
 {
 	/*
 	 * returns the likelihood ratio that alleles are differentially associated among treatments
@@ -31,6 +31,7 @@ double SiteStat::assoclrt (Pileup* pile, std::vector<treatdat>* treatment, doubl
 	static double upbound [npars]; // upper bound on maf
 	static std::vector<treatdat>::iterator tIter;
 	double altlike, lr;
+	bool weightcount = true;
 
 	// parameters for iterative optimization
 	const double thresh=-1e-6; // cutoff for determining optimization failure
@@ -39,13 +40,14 @@ double SiteStat::assoclrt (Pileup* pile, std::vector<treatdat>* treatment, doubl
 	const int nullpoints = sizeof(nullstart)/sizeof(double); // number of null optimization start points
 	const int altpoints = sizeof(altstart)/sizeof(double); // number of alternative optimization start points
 
-	// set major allele
-	pile->setMajor(pile->empiricalMajor()); // using most common allele as major
+	// set major and minor allele
+	pile->setMajor(pile->empiricalMajor(weightcount)); // using most common allele as major
+	pile->setMinor(pile->empiricalMinorFast(weightcount)); // using second most common allele
 
 	// calculate null MAF
 	upbound[0] = 0.5;
 	pile->assignTreatment("");
-	inval[0]=mafguess(pile);
+	inval[0]=mafguess(pile, weightcount);
 	like[0] = findmax_bfgs(npars, inval, pile, maflike, NULL, lowbound, upbound, nbounds, verb, status);
 
 	if (*status)
@@ -77,7 +79,8 @@ double SiteStat::assoclrt (Pileup* pile, std::vector<treatdat>* treatment, doubl
 		if (tIter->first != "null")
 		{
 			pile->assignTreatment(tIter->first);
-			inval[0]=altstart[0];
+			//inval[0]=altstart[0]; // this would be conservative
+			inval[0]= treatfreqFast(pile, &tIter->first, pile->minorid());
 			altlike = findmax_bfgs(npars, inval, pile, maflike, NULL, lowbound, upbound, nbounds, verb, status);
 			if (*status)
 			{
@@ -150,6 +153,136 @@ double SiteStat::assoclrt (Pileup* pile, std::vector<treatdat>* treatment, doubl
 	return lr;
 }
 
+
+double SiteStat::assoclrt1 (Pileup* pile, std::vector<treatdat>* treatment, double like [], int* status, int verb)
+{
+	/*
+	 * returns the likelihood ratio that alleles are differentially associated among treatments
+	 * seqdata: sequencing data
+	 * treatment: different treatment identifiers
+	 * like: stores -log likelihoods of [null, alternative]
+	*/
+
+	//verb = 100; // debug
+
+	const int npars = 1; // number of parameters to optimize
+	static double inval [npars]; // starting maf value
+	static int nbounds [] = {2}; // signifies boundary conditions (see bfgs.h for description)
+	static double lowbound [] = {0.0}; // lower bound on maf
+	static double upbound [npars] = {1.0}; // upper bound on maf
+	static std::vector<treatdat>::iterator tIter;
+	double t1like, nullfreq, lr;
+	bool weightcount = true;
+
+	// parameters for iterative optimization
+	const double thresh=-1e-6; // cutoff for determining optimization failure
+	static double start [] = {0.0001, 0.5, 0.99}; // optimization starting points
+	const int startpoints = sizeof(start)/sizeof(double); // number of optimization start points
+
+	// set major and minor allele
+	pile->setMajor(pile->empiricalMajor(weightcount)); // using most common allele as major
+	pile->setMinor(pile->empiricalMinorFast(weightcount)); // using second most common allele
+
+	// treatment 1 MAF
+	std::string t1id;
+	like[0] = 0.0;
+	tIter = treatment->begin();
+	while(tIter->first == "null") ++tIter;
+	t1id=tIter->first;
+	pile->assignTreatment(t1id);
+	inval[0]=treatfreqFast(pile, &t1id, pile->minorid());
+
+	t1like = findmax_bfgs(npars, inval, pile, maflike, NULL, lowbound, upbound, nbounds, verb, status);
+	if (*status)
+	{
+		*status=0;
+		t1like=multiOptim(pile, start, startpoints, inval, lowbound, upbound, nbounds, t1like, status, verb);
+		if (*status)
+		{
+			optimErrorMsg(pile);
+			*status=-1.0;
+			return std::numeric_limits<double>::quiet_NaN();
+		}
+	}
+	tIter->second=nullfreq=inval[0];
+
+	// treatment 2 MAF
+	std::string t2id;
+	like[1]=0.0;
+	tIter = treatment->begin();
+	while(tIter->first == "null" || tIter->first == t1id) ++tIter;
+	t2id=tIter->first;
+	pile->assignTreatment(t2id);
+	inval[0]=treatfreqFast(pile, &t2id, pile->minorid());
+
+	like[1] = findmax_bfgs(npars, inval, pile, maflike, NULL, lowbound, upbound, nbounds, verb, status);
+	if (*status)
+	{
+		*status=0;
+		like[1]=multiOptim(pile, start, startpoints, inval, lowbound, upbound, nbounds, like[1], status, verb);
+		if (*status)
+		{
+			optimErrorMsg(pile);
+			*status=-1.0;
+			return std::numeric_limits<double>::quiet_NaN();
+		}
+	}
+	tIter->second=inval[0];
+
+	// null likelihood
+	inval[0] = nullfreq;
+	like[0] = maflike(inval, pile);
+
+	// calculate LR
+	lr = calclr(&like[0], &like[1]);
+
+	// check for optimization failure
+	if (lr < thresh)
+	{
+		// try multiple starting points //
+
+		// treatment 1
+		tIter=treatment->begin();
+		pile->assignTreatment(t1id);
+		t1like=multiOptim(pile, start, startpoints, inval, lowbound, upbound, nbounds, t1like, status, verb);
+		while (tIter->first == "null" || tIter->first == t2id) ++tIter;
+		tIter->second=nullfreq=inval[0];
+
+		// check if bfgs routine failed
+		if (*status)
+		{
+			optimErrorMsg(pile);
+			*status=-1.0;
+			return std::numeric_limits<double>::quiet_NaN();
+		}
+
+		// treatment 2
+		tIter=treatment->begin();
+		pile->assignTreatment(t2id);
+		like[1]=multiOptim(pile, start, startpoints, inval, lowbound, upbound, nbounds, 1.0/0.0, status, verb);
+		while(tIter->first == "null" || tIter->first == t1id) tIter++;
+		tIter->second=inval[0];
+
+		// check if bfgs routine failed
+		if (*status)
+		{
+			optimErrorMsg(pile);
+			*status=-1.0;
+			return std::numeric_limits<double>::quiet_NaN();
+		}
+
+		//null
+		inval[0] = nullfreq;
+		like[0] = maflike(inval, pile);
+
+		// recalculate LR
+		lr = calclr(&like[0], &like[1]);
+	}
+
+	return lr;
+}
+
+
 double SiteStat::snplr (Pileup* pile, double* mlmaf, int* status, int verb)
 {
 	/*
@@ -168,6 +301,7 @@ double SiteStat::snplr (Pileup* pile, double* mlmaf, int* status, int verb)
 	static double upbound [] = {0.5}; // upper bound on maf
 	double alt, null, lr;
 	bool multiopt=false;
+	bool weightcount = true;
 
 	// parameters for iterative optimization
 	const double thresh=-1e-6; // cutoff for determining optimization failure
@@ -175,10 +309,11 @@ double SiteStat::snplr (Pileup* pile, double* mlmaf, int* status, int verb)
 	const int npoints = sizeof(startval)/sizeof(double); // number of optimization start points
 
 	// set major allele
-	pile->setMajor(pile->empiricalMajor()); // using most common allele as major
+	pile->setMajor(pile->empiricalMajor(weightcount)); // using most common allele as major
+	pile->setMinor(pile->empiricalMinorFast(weightcount)); // using second most common allele
 
 	// find maximum likelihood estimate of maf
-	inval[0] = mafguess(pile);
+	inval[0] = mafguess(pile, weightcount);
 	alt = findmax_bfgs(npars, inval, pile, maflike, NULL, lowbound, upbound, nbounds, verb, status);
 	if (*status)
 	{
@@ -254,26 +389,51 @@ double SiteStat::multiOptim (Pileup* pile, const double* startval, int npoints, 
 	return min;
 }
 
-double SiteStat::mafguess (Pileup* pile)
+
+double SiteStat::mafguess (Pileup* pile, bool wt)
 {
-	char major;
+	char minor;
 	const static char a [] = {'A', 'C', 'G', 'T'};
 	int i;
 	double c = 0.0;
 	double total = 0.0;
 	double n;
 
-	major = pile->majorid() ? pile->majorid() : pile->empiricalMajor();
+	minor = pile->minorid() ? pile->minorid() : pile->empiricalMinorFast(wt);
 
 	for (i=0; i<4; ++i)
 	{
-		n = static_cast<double>(pile->alleleCount(a[i]));
-		if (a[i] != major)
-			c += n;
+		n = wt ? pile->wtalleleCount(a[i]) : static_cast<double>(pile->alleleCount(a[i]));
+		if (a[i] == minor) c = n;
 		total += n;
 	}
 
 	return (c/total);
+}
+
+double SiteStat::treatfreqFast (Pileup* pile, std::string* id, char allele)
+{
+	if (allele == 'N')
+		return 0.0;
+	return pile->treatcounts(id, allele)/pile->treatcounts(id);
+}
+
+double SiteStat::treatfreq (Pileup* pile, std::string* id, char allele)
+{
+	if (allele == 'N')
+		return 0.0;
+	unsigned int c = 0;
+	unsigned int total = 0;
+	static std::vector<SiteData>::const_iterator tIter;
+	for(tIter = pile->seqdat.begin(); tIter != pile->seqdat.end(); ++tIter)
+	{
+		if (tIter->id() == *id)
+		{
+			c += tIter->cov(allele);
+			total += tIter->cov();
+		}
+	}
+	return(static_cast<double>(c)/total);
 }
 
 void SiteStat::optimErrorMsg (const Pileup* seqdata)
@@ -308,6 +468,7 @@ double SiteStat::maflike (const double par [], const void* data)
 
 	// identify major allele (most common read for site)
 	char maj=seqdata->majorid();
+	char minor=seqdata->minorid();
 
 	// loop over all pools (or individuals if s=2)
 	for (poolIter = seqdata->seqdat.begin(); poolIter != seqdata->seqdat.end(); ++poolIter)
@@ -323,8 +484,11 @@ double SiteStat::maflike (const double par [], const void* data)
         {
 			// iterate over all reads and use read-specific error rate
 			for (readIter = poolIter->rdat.begin(); readIter != poolIter->rdat.begin() + poolIter->cov(); ++readIter)
-				ptmp[k] += log(readProb(readIter->first, maj, k, readIter->second, s, MAXQUAL));
+			{
+				if (readIter->first == maj || readIter->first == minor) // skip reads that are not major or minor
+					ptmp[k] += log(readProb(readIter->first, minor, k, readIter->second, s, MAXQUAL));
 				//kahanSum(log(readProb(readIter->first, maj, k, readIter->second, s, MAXQUAL)), &ptmp[k], &comp); /* caused rounding error in optimization */
+			}
 			// apply the prior on the number of true minor alleles
 			ptmp[k] += log(randomVar::binomProb(s,k,maf));
 			//kahanSum(log(randomVar::binomProb(s,k,maf)), &ptmp[k], &comp); /* caused rounding error in optimization */
@@ -352,23 +516,23 @@ char SiteStat::findMajor (const Pileup* sitedata)
 	return maj;
 }
 
-double SiteStat::readProb (const char obs, const char major, unsigned int nminor, unsigned int qscore, const unsigned int nchr, const unsigned int qmax)
+double SiteStat::readProb (const char obs, const char minor, unsigned int nminor, unsigned int qscore, const unsigned int nchr, const unsigned int qmax)
 {
-	/* for probability matrix rows = # possible true minor alleles in pool, columns = quality score*/
-	static Matrix<double> majtab(nchr+1, qmax+1, 0.0); /* stores all possible values for P(X_r|k,err), X_r = major allele */
-	static Matrix<double> mintab(nchr+1, qmax+1, 0.0); /* stores all possible values for P(X_r|k,err), X_r = minor allele */
+	// for probability matrix rows = # possible true minor alleles in pool, columns = quality score //
+	static Matrix<double> mintab(nchr+1, qmax+1, 0.0); // stores all possible values for P(X_r|k,err), X_r = minor allele //
+	static Matrix<double> majtab(nchr+1, qmax+1, 0.0); // stores all possible values for P(X_r|k,err), X_r = major allele //
 	static Matrix<double>* p = NULL;
 
 	if (nminor <= nchr && qscore <= qmax)
 	{
-		p = obs == major ? &majtab : &mintab;
-		return ((*p)[nminor][qscore] != 0.0 ? (*p)[nminor][qscore] : ((*p)[nminor][qscore]=pread(nminor, qscore, nchr, obs, major)));
+		p = obs == minor ? &mintab : &majtab;
+		return ((*p)[nminor][qscore] != 0.0 ? (*p)[nminor][qscore] : ((*p)[nminor][qscore]=pread(nminor, qscore, nchr, obs, minor)));
 	}
 	else
-		return pread(nminor, qscore, nchr, obs, major);
+		return pread(nminor, qscore, nchr, obs, minor);
 }
 
-double SiteStat::pread (int k, double qscore, int s, const char obs, const char major)
+double SiteStat::pread (int k, double qscore, int s, const char obs, const char minor)
 {
 	/*
 	* k = number of true minor alleles
@@ -378,12 +542,12 @@ double SiteStat::pread (int k, double qscore, int s, const char obs, const char 
 	* major = major allele
 	*/
 
-	double err = pow(10, -qscore/10);
+	double err = pow(10, -qscore/10.0);
 
-	if (obs == major)
-		return (1.0-err)*(static_cast<double>(s-k)/s) + (err/3)*(static_cast<double>(k)/s);
+	if (obs == minor)
+		return (static_cast<double>(k)/s)*(1.0-err) + (static_cast<double>(s-k)/s)*(err/3.0);
 	else
-		return err*(static_cast<double>(s-k)/s) + (1.0 - err + (2*err)/3)*(static_cast<double>(k)/s);
+		return (static_cast<double>(k)/s)*err + (static_cast<double>(s-k)/s)*(1.0 - err + (2*err)/3);
 }
 
 void SiteStat::kahanSum(double summand, double* total, double* comp)

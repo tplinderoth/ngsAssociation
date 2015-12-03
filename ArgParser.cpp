@@ -17,6 +17,7 @@ ArgParser::ArgParser ()
 	  _printIndiv(false),
 	  _is(std::cin),
 	  _os(std::cout.rdbuf()),
+	  _lrstat(1),
 	  _fail(0)
 { }
 
@@ -43,7 +44,21 @@ int ArgParser::parseInput (const int c, char** v, const char* version)
 	++argPos;
 	while (argPos < c)
 	{
-		if (strcmp(v[argPos], "-infile") == 0)
+		if (strcmp(v[argPos], "-lrstat") == 0)
+		{
+			_lrstat = atoi(v[argPos+1]);
+			switch (_lrstat)
+			{
+				case 1 :
+					break;
+				case 2 :
+					break;
+				default :
+					fprintf(stderr, "Invalid argument to -lrstat\n");
+					return -1;
+			}
+		}
+		else if (strcmp(v[argPos], "-infile") == 0)
 		{
 			_infile = (fexists(v[argPos + 1]) || strcmp(v[argPos+1], "-") == 0) ? v[argPos+1] : "";
 			if (_infile.empty())
@@ -159,7 +174,7 @@ int ArgParser::commandCheck(const char* command)
 void ArgParser::maininfo (const char* v)
 {
 	int w = 12;
-	std::cerr << "\nngsAssociation\nversion " << v << "\n\nUsage: ngsAssociation <command> [options]\n"
+	std::cerr << "\nngsAssociation\nversion " << v << "\n\nUsage: ngsAssociation [command] [arguments]\n"
 	<< "\nCommands:\n"
 	<< "\n" << std::setw(w) << std::left << "association" << "Test for an association between allele frequency and treatment"
 	<< "\n" << std::setw(w) << std::left << "summarize" << "Sequencing and allele frequency information for sites"
@@ -171,7 +186,7 @@ void ArgParser::summinfo ()
 	int w = 12;
 	std::string(indDefault);
 	indDefault = _printIndiv == true ? "SET" : "NOT SET";
-	std::cerr << "\nUsage: ngsAssociation summarize [options]\n"
+	std::cerr << "\nUsage: ngsAssociation summarize [arguments]\n"
 	<< "\nInput:\n"
 	<< "\n" << std::setw(w) << std::left << "-infile" << std::setw(w) << "FILE|-" << "pileup format file of reads and quality scores; specifying '-' will read from STDIN [" << _infile << "]"
 	<< "\n" << std::setw(w) << std::left << "-outfile" << std::setw(w) << "FILE" << "name of output file; if not provided results printed to STDOUT [" << _outfile << "]"
@@ -200,8 +215,9 @@ void ArgParser::summinfo ()
 void ArgParser::associnfo ()
 {
 	int w=12;
-	std::cerr << "\nUsage: ngsAssociation association [options]\n"
+	std::cerr << "\nUsage: ngsAssociation association [arguments]\n"
 	<< "\nInput:\n"
+	<< "\n" << std::setw(w) << std::left << "-lrstat" << std::setw(w) << "1|2" << "method for calculating the likelihood ratio of association [" << _lrstat << "]"
 	<< "\n" << std::setw(w) << std::left << "-infile" << std::setw(w) << "FILE|-" << "pileup format file of reads and quality scores; specifying '-' will read from STDIN [" << _infile << "]"
 	<< "\n" << std::setw(w) << std::left << "-outfile" << std::setw(w) << "FILE" << "name of output file; if not provided results printed to STDOUT [" << _outfile << "]"
 	<< "\n" << std::setw(w) << std::left << "-treatments" << std::setw(w) << "FILE" << "file of treatment IDs for pools [" << _treatfile << "]"
@@ -219,7 +235,8 @@ void ArgParser::associnfo ()
 	<< "\n(5) likelihood ratio of allelic association"
 	<< "\n(6) null MAF"
 	<< "\n(7+) alternative MAF"
-	<<"\n\nThe alternative MAFs are listed in the order that the treatments uniquely appear in the -treatments file."
+	<<"\n\nLR method 1: the null MAF is the frequency of the minor allele in the first treatment appearing in the -treatments file"
+	<< "\nLR method 2: alternative (treatment) MAFs are listed in the order that treatments uniquely appear in the -treatments file."
 	<< "\n\n";
 }
 
@@ -273,13 +290,14 @@ int ArgParser::setStreams (const std::string infile, const std::string outfile)
 	return 0;
 }
 
-int ArgParser::parseTreatment (const std::string fname, std::vector< std::pair<std::string, double> >* treatment, Pileup* pile)
+int ArgParser::parseTreatment (const std::string fname, std::vector< std::pair<std::string, double> >* treatment, Pileup* pile, int lrmethod)
 {
 	std::fstream fin;
 	const int n = 256;
 	char s[n];
 	unsigned int i = 0;
 	std::vector< std::pair<std::string,double> >::const_iterator j;
+	std::string id;
 	int seen=0;
 
 	if (pile->seqdat.empty())
@@ -314,12 +332,26 @@ int ArgParser::parseTreatment (const std::string fname, std::vector< std::pair<s
 			}
 		}
 		if (!seen)
+		{
 			treatment->push_back(std::make_pair(s, 0.0));
+			id = s;
+			pile->addtreatment(&id);
+		}
 		++i;
 	}
 	if (i != pile->seqdat.size())
 	{
 		fprintf(stderr, "Error: Number of pools in pileup and treatment ID's in %s differ\n",fname.c_str());
+		return -1;
+	}
+	if (treatment->size() < 2)
+	{
+		fprintf(stderr, "Error: -treatments file has less than 2 different treatments\n");
+		return -1;
+	}
+	if (lrmethod == 1 && treatment->size()-1 > 2)
+	{
+		fprintf(stderr, "Error: -lrstat 1 only works for 2 treatments\n");
 		return -1;
 	}
 
@@ -379,4 +411,9 @@ std::ostream& ArgParser::output ()
 unsigned int ArgParser::poolsz () const
 {
 	return _poolsz;
+}
+
+int ArgParser::lrmethod () const
+{
+	return _lrstat;
 }

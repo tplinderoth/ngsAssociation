@@ -9,3 +9,4 @@ doc/ngsAssociation_manual.toc
 /Debug/
 *.cproject
 *.project
+/Release/
