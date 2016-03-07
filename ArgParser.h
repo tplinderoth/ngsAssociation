@@ -23,7 +23,7 @@ public:
 	unsigned int mincov () const; /* return _mincov */
 	unsigned int poolsz () const; /* return _poosz */
 	int lrmethod () const; /* return _lrstat */
-	bool printInd () const; /* returns _printInd */
+	int printInd () const; /* returns _printInd */
 	std::string inpileup_name() const; /* returns _infile */
 	std::string outfile_name() const; /* returns _outfile */
 	std::string treatmentf_name() const; /* returns _treatfile */
@@ -42,7 +42,7 @@ private:
 	unsigned int _minpooln; /* min number of 'covered' pools */
 	unsigned int _mincov; /* min per pool depth for a pool to be considered 'covered' */
 	unsigned int _poolsz; /* haploid size of each pool */
-	bool _printIndiv; /* controls whether individual information should be printed */
+	int _printIndiv; /* controls whether individual information should be printed */
 	std::string _infile; /* name of input pileup file */
 	std::string _outfile; /* name of output file */
 	std::string _treatfile; /* name of input file containing pool treatments*/

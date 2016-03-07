@@ -57,8 +57,8 @@ public:
 	size_t nInd () const;
 	void setpoolsz (unsigned int n); /* sets _poolsz member */
 	unsigned int poolsz (int ploidy=1) const; /* if ploidy argument is supplied, number of individuals comprising each pool returned, otherwise return haploid size*/
-	unsigned int alleleCount (const char allele) const; /* return count of specific alleles: 'A', 'C', 'G', 'T', 'I' (indel) */
-	double wtalleleCount (const char allele) const; /* return quality-score-weighted count of a specific allele */
+	unsigned int alleleCount (const char allele) const; /* return count of specific alleles: 'A', 'C', 'G', 'T', 'I' (indel) for site*/
+	double wtalleleCount (const char allele) const; /* return quality-score-weighted count of a specific allele for site*/
 	char refAllele () const; /* return reference allele */
 	void assignTreatment (std::string id); /* sets _treatment member */
 	std::string treatment () const; /* returns treatment member */

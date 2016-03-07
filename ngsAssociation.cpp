@@ -213,7 +213,7 @@ int doAssoc(Pileup* pile, std::vector<treatdat>* treatment, std::ostream& os, in
 	return rc;
 }
 
-int doSummary (Pileup* pile, std::ostream& os, bool indivData, int v)
+int doSummary (Pileup* pile, std::ostream& os, int indivData, int v)
 {
 	int rc=0;
 	static double lr;
@@ -245,29 +245,35 @@ int doSummary (Pileup* pile, std::ostream& os, bool indivData, int v)
 	<< "\t" << std::fixed << std::setprecision(prec) << lr;
 
 	// print individual pool reads and quality scores
-	if (indivData)
+	if (indivData > 0)
 	{
 		// loop over all individuals
 		for (poolIter = pile->seqdat.begin(); poolIter != pile->seqdat.end(); ++poolIter)
 		{
-			os << "\t" << poolIter->cov() << "\t";
-			poolcov=poolIter->cov();
-			if (poolcov > 0)
+			os << "\t" << poolIter->cov();
+			if (indivData > 1)
+				os << ";" << poolIter->cov('A') << ";" << poolIter->cov('C') << ";" << poolIter->cov('G') << ";" << poolIter->cov('T');
+			if (indivData > 2)
 			{
-				// loop over all reads for individual
-				for (readIter = poolIter->rdat.begin(); readIter != poolIter->rdat.begin() + poolcov; ++readIter)
-					os << readIter->first;
-				// loop over all quality scores for individual
 				os << "\t";
-				for (readIter = poolIter->rdat.begin(); readIter != poolIter->rdat.begin() + poolcov; ++readIter)
+				poolcov=poolIter->cov();
+				if (poolcov > 0)
 				{
-					os << std::fixed << std::setprecision(qprec) << readIter->second;
-					if (static_cast <unsigned int> (std::distance(readIter, poolIter->rdat.begin() + poolcov)) > 1)
-						os << ";";
+					// loop over all reads for individual
+					for (readIter = poolIter->rdat.begin(); readIter != poolIter->rdat.begin() + poolcov; ++readIter)
+						os << readIter->first;
+					// loop over all quality scores for individual
+					os << "\t";
+					for (readIter = poolIter->rdat.begin(); readIter != poolIter->rdat.begin() + poolcov; ++readIter)
+					{
+						os << std::fixed << std::setprecision(qprec) << readIter->second;
+						if (static_cast <unsigned int> (std::distance(readIter, poolIter->rdat.begin() + poolcov)) > 1)
+							os << ";";
+					}
 				}
+				else
+					os << "*\t*";
 			}
-			else
-				os << "*\t*";
 		}
 	}
 	os << "\n";

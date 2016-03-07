@@ -14,7 +14,7 @@ ArgParser::ArgParser ()
 	  _minpooln(1),
 	  _mincov(1),
 	  _poolsz(2),
-	  _printIndiv(false),
+	  _printIndiv(0),
 	  _is(std::cin),
 	  _os(std::cout.rdbuf()),
 	  _lrstat(1),
@@ -127,8 +127,12 @@ int ArgParser::parseInput (const int c, char** v, const char* version)
 		}
 		else if (strcmp(v[argPos], "-printIndiv") == 0)
 		{
-			_printIndiv = true;
-			increment = -1;
+			_printIndiv = atoi(v[argPos+1]);
+			if (_printIndiv < 0)
+			{
+				fprintf(stderr,"-printIndiv argument must be >= 0\n");
+				return -1;
+			}
 		}
 		else
 		{
@@ -195,7 +199,7 @@ void ArgParser::summinfo ()
 	<< "\n" << std::setw(w) << std::left << "-minQ" << std::setw(w) << "FLOAT" << "minimum base quality score to retain read [" << _minQ << "]"
 	<< "\n" << std::setw(w) << std::left << "-minpooln" << std::setw(w) << "INT" << "minimum number of covered pools to retain site [" << _minpooln << "]"
 	<< "\n" << std::setw(w) << std::left << "-mincov" << std::setw(w) << "INT" << "minimum number of reads for a pool to be considered 'covered' [" << _mincov << "]"
-	<< "\n" << std::setw(w) << std::left << "-printIndiv" << std::setw(w) << "" << "output coverage and quality score information for each pool [" << indDefault << "]"
+	<< "\n" << std::setw(w) << std::left << "-printIndiv" << std::setw(w) << "INT" << "output coverage and quality score information for each pool [" << _printIndiv << "]"
 	<< "\n\nOutput by field:"
 	<< "\n(1) sequence ID"
 	<< "\n(2) position in sequence (1-base indexed)"
@@ -204,11 +208,10 @@ void ArgParser::summinfo ()
 	<< "\n(5) count of each allele for site: A;C;G;T;INDEL"
 	<< "\n(6) maximum likelihood MAF estimate"
 	<< "\n(7) likelihood ratio that site is variable"
-	<< "\n(8) pool coverage"
-	<< "\n(9) pool read bases"
-	<< "\n(10) base quality scores for reads (delimited by ;)"
-	<< "\n\nFields 8-10 are repeated for each pool."
-	<<"\nIndividual pool information is outputted only if '-printIndiv' argument is supplied."
+	<< "\n(8) pool coverage (if printIndiv=1, + per A;C;G;T coverage if printIndiv=2)"
+	<< "\n(9) pool read bases (if printIndiv=3)"
+	<< "\n(10) base quality scores for reads (if printIndiv=3)"
+	<< "\n\nFields 8-10 are repeated for each pool depending on the value of -printIndiv."
 	<< "\n\n";
 }
 
@@ -378,7 +381,7 @@ unsigned int ArgParser::mincov () const
 	return _mincov;
 }
 
-bool ArgParser::printInd() const
+int ArgParser::printInd() const
 {
 	return _printIndiv;
 }

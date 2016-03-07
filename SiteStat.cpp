@@ -33,7 +33,7 @@ double SiteStat::assoclrt2 (Pileup* pile, std::vector<treatdat>* treatment, doub
 	double lr;
 	static Array<double> altlike(treatment->size()-1, 0.0);
 	int i;
-	bool weightcount = true;
+	static bool weightcount = true;
 
 	// parameters for iterative optimization
 	const double thresh=-1e-6; // cutoff for determining optimization failure
@@ -186,7 +186,7 @@ double SiteStat::assoclrt1 (Pileup* pile, std::vector<treatdat>* treatment, doub
 	static double upbound [npars] = {1.0}; // upper bound on maf
 	static std::vector<treatdat>::iterator tIter;
 	double nullfreq, lr;
-	bool weightcount = true;
+	static bool weightcount = true;
 
 	// parameters for iterative optimization
 	const double thresh=-1e-6; // cutoff for determining optimization failure
@@ -321,8 +321,9 @@ double SiteStat::snplr (Pileup* pile, double* mlmaf, int* status, int verb)
 	static double lowbound [] = {0.0}; // lower bound on maf
 	static double upbound [] = {0.5}; // upper bound on maf
 	double alt, null, lr;
-	bool multiopt=false;
-	bool weightcount = true;
+	static bool multiopt=false;
+	static bool weightcount = true;
+	static bool weightmaf = true;
 
 	// parameters for iterative optimization
 	const double thresh=-1e-6; // cutoff for determining optimization failure
@@ -334,7 +335,7 @@ double SiteStat::snplr (Pileup* pile, double* mlmaf, int* status, int verb)
 	pile->setMinor(pile->empiricalMinorFast(weightcount)); // using second most common allele
 
 	// find maximum likelihood estimate of maf
-	inval[0] = mafguess(pile, weightcount);
+	inval[0] = mafguess(pile, weightmaf);
 	alt = findmax_bfgs(npars, inval, pile, maflike, NULL, lowbound, upbound, nbounds, verb, status);
 	if (*status)
 	{
@@ -369,6 +370,7 @@ double SiteStat::snplr (Pileup* pile, double* mlmaf, int* status, int verb)
 			return std::numeric_limits<double>::quiet_NaN();
 		}
 
+		*mlmaf=inval[0];
 		// recalculate LR
 		lr = calclr(&null, &alt);
 		// check if optimization still failed
