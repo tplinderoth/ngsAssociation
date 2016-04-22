@@ -62,6 +62,9 @@ int main (int argc, char** argv)
 		return 0;
 	}
 
+	// close IO streams
+	runpar.closeStreams();
+
 	// exit program
 	exitMessage(0);
 

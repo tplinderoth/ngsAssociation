@@ -16,6 +16,7 @@ public:
 	ArgParser ();
 	int parseInput (const int c, char** v, const char* version); /* parse command line arguments to set data members*/
 	int setStreams (std::string infile, std::string outfile); /* sets IO streams */
+	void closeStreams (); /* close IO streams */
 	static int parseTreatment (const std::string fname, std::vector< std::pair<std::string, double> >* treatment, Pileup* pile, int lrmethod); /* get treatment info from file */
 	double minQ () const; /* return _minQ */
 	double offset () const; /* return _Qoffset */

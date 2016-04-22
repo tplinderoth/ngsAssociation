@@ -17,7 +17,7 @@ ArgParser::ArgParser ()
 	  _printIndiv(0),
 	  _is(std::cin),
 	  _os(std::cout.rdbuf()),
-	  _lrstat(1),
+	  _lrstat(2),
 	  _fail(0)
 { }
 
@@ -195,7 +195,7 @@ void ArgParser::summinfo ()
 	<< "\n" << std::setw(w) << std::left << "-infile" << std::setw(w) << "FILE|-" << "pileup format file of reads and quality scores; specifying '-' will read from STDIN [" << _infile << "]"
 	<< "\n" << std::setw(w) << std::left << "-outfile" << std::setw(w) << "FILE" << "name of output file; if not provided results printed to STDOUT [" << _outfile << "]"
 	<< "\n" << std::setw(w) << std::left << "-poolsz" << std::setw(w) << "INT" << "haploid sample size of each pool [" << _poolsz << "]"
-	<< "\n" << std::setw(w) << std::left << "-Qoffset" << std::setw(w) << "FLOAT" << "minimum possible ASCII decimal value for base quality scores [" << _Qoffset << "]"
+	<< "\n" << std::setw(w) << std::left << "-Qoffset" << std::setw(w) << "FLOAT" << "minimum possible decimal value for base quality scores [" << _Qoffset << "]"
 	<< "\n" << std::setw(w) << std::left << "-minQ" << std::setw(w) << "FLOAT" << "minimum base quality score to retain read [" << _minQ << "]"
 	<< "\n" << std::setw(w) << std::left << "-minpooln" << std::setw(w) << "INT" << "minimum number of covered pools to retain site [" << _minpooln << "]"
 	<< "\n" << std::setw(w) << std::left << "-mincov" << std::setw(w) << "INT" << "minimum number of reads for a pool to be considered 'covered' [" << _mincov << "]"
@@ -225,7 +225,7 @@ void ArgParser::associnfo ()
 	<< "\n" << std::setw(w) << std::left << "-outfile" << std::setw(w) << "FILE" << "name of output file; if not provided results printed to STDOUT [" << _outfile << "]"
 	<< "\n" << std::setw(w) << std::left << "-treatments" << std::setw(w) << "FILE" << "file of treatment IDs for pools [" << _treatfile << "]"
 	<< "\n" << std::setw(w) << std::left << "-poolsz" << std::setw(w) << "INT" << "haploid sample size of each pool [" << _poolsz << "]"
-	<< "\n" << std::setw(w) << std::left << "-Qoffset" << std::setw(w) << "FLOAT" << "minimum possible ASCII decimal value for base quality scores [" << _Qoffset << "]"
+	<< "\n" << std::setw(w) << std::left << "-Qoffset" << std::setw(w) << "FLOAT" << "minimum possible decimal value for base quality scores [" << _Qoffset << "]"
 	<< "\n" << std::setw(w) << std::left << "-minQ" << std::setw(w) << "FLOAT" << "minimum base quality score to retain read [" << _minQ << "]"
 	<< "\n" << std::setw(w) << std::left << "-minpooln" << std::setw(w) << "INT" << "minimum number of covered pools to retain site [" << _minpooln << "]"
 	<< "\n" << std::setw(w) << std::left << "-mincov" << std::setw(w) << "INT" << "minimum number of reads for a pool to be considered 'covered' [" << _mincov << "]"
@@ -291,6 +291,17 @@ int ArgParser::setStreams (const std::string infile, const std::string outfile)
 		std::cerr << "Dumping results to standard output\n";
 
 	return 0;
+}
+
+void ArgParser::closeStreams ()
+{
+	if (_fin.is_open())
+		_fin.close();
+	if (_fout.is_open())
+	{
+		_fout.flush();
+		_fout.close();
+	}
 }
 
 int ArgParser::parseTreatment (const std::string fname, std::vector< std::pair<std::string, double> >* treatment, Pileup* pile, int lrmethod)
