@@ -52,7 +52,7 @@ private:
 	std::fstream _fout;
 	std::istream& _is;
 	std::ostream _os;
-	int _lrstat; /* calculate association LR using 1 => TL method or 2 => SYK method */
+	int _lrstat; /* calculate association LR using 1 => SYK method or 2 => TL method (deprecated) */
 	/* status flags */
 	int _fail; /* flag to denote program errors */
 };

@@ -242,9 +242,12 @@ void Pileup::getReadDat (std::string* reads, std::string* qual, size_t ind)
                 case 'T' :
                         refidx=3;
                         break;
-		default :
-			fprintf(stderr, "warning: unrecognized reference allele '%c' at %s position %d\n", _refallele, _name.c_str(), _pos);
-			refidx = -1;
+                case 'N' :
+                		refidx=5;
+                		break;
+                default :
+                	fprintf(stderr, "warning: unrecognized reference allele '%c' at %s position %d\n", _refallele, _name.c_str(), _pos);
+                	refidx = -1;
 	}
 
 	for(std::string::const_iterator r_iter = reads->begin(); r_iter != reads->end(); ++r_iter) // go over all reads
@@ -256,7 +259,14 @@ void Pileup::getReadDat (std::string* reads, std::string* qual, size_t ind)
 			/* reference allele */
 			case '.' :
 			case ',' :
-				recordRead(ind, q, read_num, index, refidx, _refallele);
+				if (refidx != 5)
+					recordRead(ind, q, read_num, index, refidx, _refallele);
+				else
+				{
+					fprintf(stderr, "warning: read coded as '%c' with reference set to 'N' for %s position %d\n", r, _name.c_str(), _pos);
+					++q;
+					++index;
+				}
 				break;
 			/* alternate allele */
 			case 'A' :

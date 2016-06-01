@@ -17,7 +17,7 @@ ArgParser::ArgParser ()
 	  _printIndiv(0),
 	  _is(std::cin),
 	  _os(std::cout.rdbuf()),
-	  _lrstat(2),
+	  _lrstat(1),
 	  _fail(0)
 { }
 
@@ -44,6 +44,7 @@ int ArgParser::parseInput (const int c, char** v, const char* version)
 	++argPos;
 	while (argPos < c)
 	{
+/*
 		if (strcmp(v[argPos], "-lrstat") == 0)
 		{
 			_lrstat = atoi(v[argPos+1]);
@@ -58,7 +59,8 @@ int ArgParser::parseInput (const int c, char** v, const char* version)
 					return -1;
 			}
 		}
-		else if (strcmp(v[argPos], "-infile") == 0)
+*/
+		if (strcmp(v[argPos], "-infile") == 0)
 		{
 			_infile = (fexists(v[argPos + 1]) || strcmp(v[argPos+1], "-") == 0) ? v[argPos+1] : "";
 			if (_infile.empty())
@@ -220,7 +222,6 @@ void ArgParser::associnfo ()
 	int w=12;
 	std::cerr << "\nUsage: ngsAssociation association [arguments]\n"
 	<< "\nInput:\n"
-	<< "\n" << std::setw(w) << std::left << "-lrstat" << std::setw(w) << "1|2" << "method for calculating the likelihood ratio of association [" << _lrstat << "]"
 	<< "\n" << std::setw(w) << std::left << "-infile" << std::setw(w) << "FILE|-" << "pileup format file of reads and quality scores; specifying '-' will read from STDIN [" << _infile << "]"
 	<< "\n" << std::setw(w) << std::left << "-outfile" << std::setw(w) << "FILE" << "name of output file; if not provided results printed to STDOUT [" << _outfile << "]"
 	<< "\n" << std::setw(w) << std::left << "-treatments" << std::setw(w) << "FILE" << "file of treatment IDs for pools [" << _treatfile << "]"
@@ -238,8 +239,7 @@ void ArgParser::associnfo ()
 	<< "\n(5) likelihood ratio of allelic association"
 	<< "\n(6) null MAF"
 	<< "\n(7+) alternative MAF"
-	<<"\n\nLR method 1: the null MAF is the frequency of the minor allele in the first treatment appearing in the -treatments file"
-	<< "\nLR method 2: alternative (treatment) MAFs are listed in the order that treatments uniquely appear in the -treatments file."
+	<<"\n\nAlternative (treatment) MAFs are listed in the order that treatments uniquely appear in the -treatments file."
 	<< "\n\n";
 }
 

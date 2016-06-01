@@ -178,17 +178,12 @@ int doAssoc(Pileup* pile, std::vector<treatdat>* treatment, std::ostream& os, in
 	int j=0;
 	const static int prec=8;
 	const static double thresh=-1e-6; /* round negative LR to zero if greater than this */
-	int offset; /* used to set which MAFs to print */
+	int offset = 0; /* used to set which MAFs to print */
 
 	// find MAFs and calculate LR
 	if (lrmethod == 1)
 	{
 		lr = SiteStat::assoclrt1(pile, treatment, like, &rc, v);
-		offset = 1;
-	}
-	else if (lrmethod == 2)
-	{
-		lr = SiteStat::assoclrt2(pile, treatment, like, &rc, v);
 		offset = 0;
 	}
 	else
